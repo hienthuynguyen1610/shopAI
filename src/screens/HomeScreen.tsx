@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useReducer } from "react";
-import { View, StyleSheet } from "react-native";
-// SafeAreaView chuẩn xử lý tai thỏ / notch
+import { View, StyleSheet, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList } from "@shopify/flash-list";
 
 import ShopButton from "@components/ShopButton";
@@ -13,6 +14,13 @@ import { useCountdown } from "@hooks/useCountdown";
 import { useTheme } from "@contexts/ThemeContext";
 import { MOCK_PRODUCTS } from "@data/mockProducts";
 import { SIZES } from "@constants/theme";
+import type { HomeStackParamList } from "@navigation/HomeStackNavigator";
+
+type HomeNavProp = NativeStackNavigationProp<HomeStackParamList, "Home">;
+
+interface HomeScreenProps {
+  onLogout?: () => void;
+}
 
 // Action types cho bộ đếm số lượng
 type QtyAction = { type: "ADD" } | { type: "REMOVE" };
@@ -29,11 +37,13 @@ function qtyReducer(state: number, action: QtyAction): number {
   }
 }
 
-const HomeScreen = () => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ onLogout }) => {
+  const navigation = useNavigation<HomeNavProp>();
+
   // Lấy bộ màu động và hàm toggleTheme từ ThemeContext
   const { colors, isDark, toggleTheme } = useTheme();
 
-  // State quản lý danh sách sản phẩm & trạng thái Pull-to-Refresh
+  // State quản lý danh sách sản phẩm & trạng thái Pull-to-Refresh (Giữ từ Ch4)
   const [products, setProducts] = useState(MOCK_PRODUCTS);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -45,11 +55,10 @@ const HomeScreen = () => {
   // Bộ đếm số lượng sử dụng useReducer
   const [quantity, dispatchQty] = useReducer(qtyReducer, 1);
 
-  // Hàm xử lý Pull-to-Refresh (Giả lập refetch API mất 1.5 giây)
+  // Hàm xử lý Pull-to-Refresh (Giữ từ Ch4)
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
-      // Xáo ngẫu nhiên mảng để người dùng thấy rõ dữ liệu vừa được làm mới
       setProducts([...MOCK_PRODUCTS].sort(() => Math.random() - 0.5));
       setRefreshing(false);
     }, 1500);
@@ -63,12 +72,26 @@ const HomeScreen = () => {
     }, 2000);
   }, [coupon, quantity]);
 
-  // Render Header bao gồm Title, Nút đổi Theme, Card Thanh Toán và Tiêu đề danh sách
+  // Render Header bao gồm Nút Logout, Title, Dark Mode, Card Thanh Toán & Tiêu đề
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      <Typography variant="h1" color={colors.text} style={styles.title}>
-        ShopAI UI Kit
-      </Typography>
+      {/* Cụm Top Header chứa Tiêu đề + Nút Thoát */}
+      <View style={styles.topBar}>
+        <Typography variant="h1" color={colors.text}>
+          ShopAI UI Kit
+        </Typography>
+        {onLogout && (
+          <ShopButton
+            title="Thoát"
+            onPress={onLogout}
+            style={{
+              width: 80,
+              height: 36,
+              backgroundColor: colors.textLight || "#888",
+            }}
+          />
+        )}
+      </View>
 
       {/* Nút bật/tắt Dark Mode */}
       <ShopButton
@@ -157,12 +180,22 @@ const HomeScreen = () => {
         <FlashList
           data={products}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ProductCard product={item} />}
+          renderItem={({ item }) => (
+            // Bọc Pressable để bấm chuyển sang trang ProductDetail
+            <Pressable
+              onPress={() =>
+                navigation.navigate("ProductDetail", { productId: item.id })
+              }
+              style={{ flex: 1 }}
+            >
+              <ProductCard product={item} />
+            </Pressable>
+          )}
           ListHeaderComponent={renderHeader}
           numColumns={2}
           estimatedItemSize={260}
-          refreshing={refreshing} // Vòng xoay loading của FlashList
-          onRefresh={handleRefresh} // Kéo tay xuống đầu danh sách để làm mới
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
           contentContainerStyle={{ padding: SIZES.padding / 2 }}
           showsVerticalScrollIndicator={false}
         />
@@ -182,10 +215,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SIZES.padding / 2,
     marginBottom: 8,
   },
-  title: {
-    textAlign: "center",
-    marginBottom: 12,
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 8,
+    marginBottom: 16,
   },
   card: {
     padding: 20,
